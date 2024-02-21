@@ -17,6 +17,8 @@ from pathlib import Path
 # https://docs.python.org/3/library/urllib.parse.html
 from urllib.parse import urlparse
 
+slash = "/"
+
 class Server(HTTPServer):
     def start_message(self):
         host, port = self.server_address[0:2] # Items at index zero and one.
@@ -29,45 +31,38 @@ class Server(HTTPServer):
 class Handler(SimpleHTTPRequestHandler):
     def do_GET(self):
         suffix = self.trim_slash(self.path)
-        root = Path.cwd()
-        self.log_message("%s", f'root"{root}"')
-        orgRoot = Path(root, "EUCDigitalWorkspace.github.io")
-        self.log_message("%s", f'orgRoot"{orgRoot}"')
+        if suffix is None: return
+        self.log_message("%s", f"suffix{suffix}")
+
+        referrerHeader = self.headers.get('Referer')
+        referrerURL = (
+            None if referrerHeader is None else urlparse(referrerHeader))
+        referrer = (
+            None if referrerURL is None else
+            self.trim_slash(referrerURL.path))
+        self.log_message("%s", f"referrer{referrer}")
 
         resourcePath = None
-        for resourceRoot in (orgRoot, root):
-            for candidateDir in (
-                Path(resourceRoot, suffix), Path(resourceRoot, suffix, "docs")
-            ):
-                if candidateDir.is_dir():
-                    candidatePath = Path(candidateDir, "index.html")
-                    if candidatePath.is_file():
-                        resourcePath = candidatePath
-                        break
-            if resourcePath is not None: break
-            candidatePath = Path(resourceRoot, suffix)
-            if candidatePath.is_file():
-                resourcePath = candidatePath
+        root = Path.cwd()
+        self.log_message("%s", f'root"{root}"')
+        for prefix in (suffix, referrer + suffix):
+            if len(prefix) == 0:
+                # Request for /
+                repository = Path(root, "EUCDigitalWorkspace.github.io")
+            else:
+                repository = Path(root, prefix[0])
+                if repository.is_dir():
+                    prefix = prefix[1:]
+                else:
+                    repository = Path(root, "EUCDigitalWorkspace.github.io")
+            repositoryDocs = Path(repository, "docs")
+            if repositoryDocs.is_dir(): repository = repositoryDocs
+            self.log_message("%s", f'repository"{repository}"')
+            candidate = Path(repository, *prefix)
+            if candidate.is_dir(): candidate = Path(candidate, "index.html")
+            if candidate.is_file():
+                resourcePath = candidate
                 break
-
-        if resourcePath is None:
-            referrerHeader = self.headers.get('Referer')
-            referrerURL = (
-                None if referrerHeader is None else urlparse(referrerHeader))
-            referrerPath = (
-                None if referrerURL is None else
-                self.trim_slash(referrerURL.path))
-            self.log_message("%s", f"Referrer path {referrerPath}")
-            if referrerPath is not None:
-                for candidateDir in (
-                    Path(root, referrerPath), Path(root, referrerPath, "docs")
-                ):
-                    candidatePath = Path(candidateDir, suffix)
-                    if candidatePath.is_file():
-                        resourcePath = candidatePath
-                        break
-                    self.log_message(
-                        "%s", f'failed candidatePath"{candidatePath}"')
 
         if resourcePath is None:
             self.log_message("%s", f'resourcePath None')
@@ -79,13 +74,15 @@ class Handler(SimpleHTTPRequestHandler):
         super().do_GET()
 
     def trim_slash(self, pathStr):
-        slash = "/"
         (prefix, sep, suffix) = pathStr.partition(slash)
-        if not(prefix == "" and sep == slash): self.send_error(
-            404,
-            f'Unexpected partition ({prefix},{sep},{suffix}).'
-            f' Expected ("",{slash}, ... )')
-        return suffix
+        if not(prefix == "" and sep == slash):
+            self.send_error(
+                404,
+                f'Unexpected partition ({prefix},{sep},{suffix}).'
+                f' Expected ("",{slash}, ... )'
+            )
+            return None
+        return tuple() if suffix == "" else tuple(suffix.split(slash))
 
 if __name__ == '__main__':
     chdir(Path(__file__).parents[1])

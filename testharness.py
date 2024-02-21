@@ -12,6 +12,10 @@ from os import chdir
 # Module for OO path handling.
 # https://docs.python.org/3/library/pathlib.html
 from pathlib import Path
+#
+# Module for parsing URLs.
+# https://docs.python.org/3/library/urllib.parse.html
+from urllib.parse import urlparse
 
 class Server(HTTPServer):
     def start_message(self):
@@ -24,13 +28,7 @@ class Server(HTTPServer):
 
 class Handler(SimpleHTTPRequestHandler):
     def do_GET(self):
-        slash = "/"
-        (prefix, sep, suffix) = self.path.partition(slash)
-        if not(prefix == "" and sep == slash): self.send_error(
-            404,
-            f'Unexpected partition ({prefix},{sep},{suffix}).'
-            f' Expected ("",{slash}, ... )')
-        
+        suffix = self.trim_slash(self.path)
         root = Path.cwd()
         self.log_message("%s", f'root"{root}"')
         orgRoot = Path(root, "EUCDigitalWorkspace.github.io")
@@ -53,6 +51,25 @@ class Handler(SimpleHTTPRequestHandler):
                 break
 
         if resourcePath is None:
+            referrerHeader = self.headers.get('Referer')
+            referrerURL = (
+                None if referrerHeader is None else urlparse(referrerHeader))
+            referrerPath = (
+                None if referrerURL is None else
+                self.trim_slash(referrerURL.path))
+            self.log_message("%s", f"Referrer path {referrerPath}")
+            if referrerPath is not None:
+                for candidateDir in (
+                    Path(root, referrerPath), Path(root, referrerPath, "docs")
+                ):
+                    candidatePath = Path(candidateDir, suffix)
+                    if candidatePath.is_file():
+                        resourcePath = candidatePath
+                        break
+                    self.log_message(
+                        "%s", f'failed candidatePath"{candidatePath}"')
+
+        if resourcePath is None:
             self.log_message("%s", f'resourcePath None')
         else:
             self.log_message("%s", f'resourcePath"{resourcePath}"')
@@ -60,6 +77,15 @@ class Handler(SimpleHTTPRequestHandler):
             self.log_message("%s", f'self.path"{self.path}"')
 
         super().do_GET()
+
+    def trim_slash(self, pathStr):
+        slash = "/"
+        (prefix, sep, suffix) = pathStr.partition(slash)
+        if not(prefix == "" and sep == slash): self.send_error(
+            404,
+            f'Unexpected partition ({prefix},{sep},{suffix}).'
+            f' Expected ("",{slash}, ... )')
+        return suffix
 
 if __name__ == '__main__':
     chdir(Path(__file__).parents[1])

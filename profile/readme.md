@@ -3,4 +3,6 @@ Welcome to the End User Computing developer portal proof-of-concept
 organisation.
 
 The developer portal is here
-[eucdigitalworkspace.github.io](https://eucdigitalworkspace.github.io/).
+[omnissa-developer.github.io](https://omnissa-developer.github.io/).
+
+The URL for it is [developer.omnissa.com](https://developer.omnissa.com).

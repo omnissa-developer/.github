@@ -1,6 +1,6 @@
-# EUC Developer Portal PoC organisation
+# EUC Developer Portal PoC organization
 Welcome to the End User Computing developer portal proof-of-concept
-organisation.
+organization.
 
 The developer portal is here
 [omnissa-developer.github.io](https://omnissa-developer.github.io/).
